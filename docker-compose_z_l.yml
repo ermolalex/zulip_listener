@@ -1,0 +1,9 @@
+services:
+  zulip_listen:
+    build: .
+    volumes:
+      - .:/app
+    expose:
+      - 80
+    labels:
+      - "traefik.enable=true"
