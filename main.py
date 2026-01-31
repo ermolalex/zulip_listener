@@ -85,14 +85,14 @@ def description_text(msg_text: str) -> str:
     return substr
 
 
-def send_photo_to_tg(user_tg_id: int, file_name: str):
+def send_photo_to_tg(user_tg_id: int, file_name: str) -> bool:
     token = settings.BOT_TOKEN
     chat_id = str(user_tg_id)
 
     file_path = Path(file_name)
     if not file_path.is_file():
         logger.error(f"Не найден файл по пути '{file_name}'")
-        return
+        return False
 
     try:
         with open(file_name, 'rb') as file:
@@ -101,11 +101,14 @@ def send_photo_to_tg(user_tg_id: int, file_name: str):
             data = {'chat_id' : chat_id}
             result = requests.post(url, files=files, data=data)
 
+            if result.status_code == 200:
+                return True
+
     except Exception as e:
         logger.error(f"Не удалось отправить в ТГ файл '{file_name}': {e}")
 
+    return False
 
-    print(result.json())
 
 def send_text_to_tg(user_tg_id, msg_text):
     # # https://api.telegram.org/bot<Bot_token>/sendMessage?chat_id=<chat_id>&text=Привет%20мир
@@ -124,16 +127,14 @@ def send_msg_to_bot(message: Message):
         # zulip file url: /user_uploads/2/de/SYE4TXtSd6kfPWW0L6pD_6RS/.png
         # local uploads dir: /home/zulip/uploads/files/2/c1/w7Rl...
         file_name = uploaded_file_name(clean_text)
-        file_name = file_name.replace("/user_uploads/", "")
-        file_name = f"/home/zulip/uploads/files/{file_name}"
+        # file_name = file_name.replace("/user_uploads/", "")
+        # file_name = f"/home/zulip/uploads/files/{file_name}"
 
         msg_text = f"{message.sender_full_name}: {description_text(clean_text)}"
 
         logger.info(f"Отправляется фото из файла {file_name}, описание: {msg_text}")
-        try:
-            send_photo_to_tg(user_tg_id, file_name)
-        except FileNotFoundError:
-            msg_text += "\nНе удалось отправить картинку..."
+        if not send_photo_to_tg(user_tg_id, file_name):
+            msg_text += "\nТут должна была быть картинка, но увы ..."
 
     send_text_to_tg(user_tg_id, msg_text)
 
