@@ -1,9 +1,7 @@
 services:
-  zulip_listen:
+  listener:
     build: .
     volumes:
-      - .:/app
-    expose:
-      - 80
+      - /home/zulip/uploads/files:/user_uploads
     labels:
       - "traefik.enable=true"
