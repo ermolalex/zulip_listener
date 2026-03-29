@@ -2,12 +2,14 @@ import sys
 import re
 import json
 import threading
+import asyncio
 from pathlib import Path
 import requests
 from enum import Enum
 
 from pydantic import BaseModel, Field
 
+from maxapi import Bot
 from maxapi.types import InputMedia
 
 import zulip
@@ -18,6 +20,8 @@ from config import settings
 import helpers
 
 logger = create_logger(logger_name=__name__)
+
+max_bot = Bot(token=settings.MAX_TOKEN)
 
 zulip = ZulipClient()
 zulip_client = zulip.client  # todo - исправить
@@ -110,25 +114,41 @@ def description_text(msg_text: str) -> str:
     return substr
 
 
-@helpers.async_exec
+#@helpers.async_exec
 def send_message_to_max(user_id: int, message_text=None, file_name=None) -> bool :
-    token = settings.BOT_TOKEN
+    if not message_text and not file_name:
+        logger.warning("В функцию send_message_to_max не переданы ни текст, ни картинка")
+        return
 
-    headers = {
-        'Authorization': f'{settings.MAX_TOKEN}',
-        'Content-Type': 'application/json',
-    }
+    asyncio.run(
+        max_bot.send_message(
+            user_id=user_id,
+            text=message_text,
+            attachments=[InputMedia(path=file_name),],
+        )
+    )
 
-    json_data = {}
-    if message_text:
-        json_data['text'] = message_text
-    if file_name:
-        json_data['attachments'] = [InputMedia(path=file_name),]
+    asyncio.run(
+        max_bot.close_session()
+    )
 
-    try:
-        response = requests.post(f'https://platform-api.max.ru/messages?user_id={user_id}', headers=headers, json=json_data)
-    except Exception as e:
-        logger.error(e)
+    # token = settings.BOT_TOKEN
+    #
+    # headers = {
+    #     'Authorization': f'{settings.MAX_TOKEN}',
+    #     'Content-Type': 'application/json',
+    # }
+    #
+    # json_data = {}
+    # if message_text:
+    #     json_data['text'] = message_text
+    # if file_name:
+    #     json_data['attachments'] = [InputMedia(path=file_name),]
+    #
+    # try:
+    #     response = requests.post(f'https://platform-api.max.ru/messages?user_id={user_id}', headers=headers, json=json_data)
+    # except Exception as e:
+    #     logger.error(e)
 
 
 @helpers.async_exec
