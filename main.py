@@ -187,7 +187,7 @@ def send_photo_to_bot(bot_user_id: BotUserId, file_name: str) -> bool:
     if bot_type == BotType.tg:
         return send_photo_to_tg(user_id, file_path)
     elif bot_type == BotType.max:
-        return send_message_to_max(user_id, file_path)
+        return send_message_to_max(user_id, message_text='', file_name=file_path)
     else:
         return False
 
