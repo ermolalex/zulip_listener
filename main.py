@@ -120,11 +120,15 @@ def send_message_to_max(user_id: int, message_text=None, file_name=None) -> bool
         logger.warning("В функцию send_message_to_max не переданы ни текст, ни картинка")
         return
 
+    attach = []
+    if file_name:
+        attach = [InputMedia(path=file_name),]
+
     asyncio.run(
         max_bot.send_message(
             user_id=user_id,
             text=message_text,
-            attachments=[InputMedia(path=file_name),],
+            attachments=attach,
         )
     )
 
