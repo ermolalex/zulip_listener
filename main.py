@@ -116,7 +116,7 @@ def description_text(msg_text: str) -> str:
 def send_message_to_max(user_id: int, message_text=None, file_name: Path=None) -> bool :
     if not message_text and not file_name:
         logger.warning("В функцию send_message_to_max не переданы ни текст, ни картинка")
-        return
+        return False
 
     max_bot = Bot(token=settings.MAX_TOKEN)
 
@@ -135,6 +135,8 @@ def send_message_to_max(user_id: int, message_text=None, file_name: Path=None) -
     asyncio.run(
         max_bot.close_session()
     )
+
+    return True
 
     # token = settings.BOT_TOKEN
     #
