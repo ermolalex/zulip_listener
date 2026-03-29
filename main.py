@@ -21,8 +21,6 @@ import helpers
 
 logger = create_logger(logger_name=__name__)
 
-max_bot = Bot(token=settings.MAX_TOKEN)
-
 zulip = ZulipClient()
 zulip_client = zulip.client  # todo - исправить
 """   !!!! Важно
@@ -119,6 +117,8 @@ def send_message_to_max(user_id: int, message_text=None, file_name: Path=None) -
     if not message_text and not file_name:
         logger.warning("В функцию send_message_to_max не переданы ни текст, ни картинка")
         return
+
+    max_bot = Bot(token=settings.MAX_TOKEN)
 
     attach = []
     if file_name:
