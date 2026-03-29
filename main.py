@@ -115,14 +115,14 @@ def description_text(msg_text: str) -> str:
 
 
 #@helpers.async_exec
-def send_message_to_max(user_id: int, message_text=None, file_name=None) -> bool :
+def send_message_to_max(user_id: int, message_text=None, file_name: Path=None) -> bool :
     if not message_text and not file_name:
         logger.warning("В функцию send_message_to_max не переданы ни текст, ни картинка")
         return
 
     attach = []
     if file_name:
-        attach = [InputMedia(path=file_name),]
+        attach = [InputMedia(path=str(file_name)),]
 
     asyncio.run(
         max_bot.send_message(
