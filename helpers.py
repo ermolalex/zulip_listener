@@ -1,4 +1,7 @@
 import  re
+import threading
+from functools import wraps
+
 
 # @_**Александр|8** [писал/а](https://zulip.voblake.shop/#narrow/channel/20-.D0.9A.D0.B8.D0.9A-.D1.81.D0.BE.
 # D1.84.D1.82-.28.D1.82.D0.B5.D1.81.D1.82.D0.BE.D0.B2.D1.8B.D0.B9.29/topic/.D0.90.D0.BB.D0.B5.D0.BA.D1.81.
@@ -78,4 +81,12 @@ def clean_quote2(text: str) -> str:
         print(f"Вы писали: {last_quote}\n\n{new_text}")
         return f"Вы писали: {last_quote}\n\n{new_text}"
     return text
+
+def async_exec(f):
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        thr = threading.Thread(target=f, daemon=True, args=args, kwargs=kwargs)
+        thr.start()
+        return thr  # returns the thread object for optional joining
+    return wrapper
 

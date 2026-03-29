@@ -3,5 +3,6 @@ services:
     build: .
     volumes:
       - /home/zulip/uploads/files:/user_uploads
+      - ./logs:/app/logs
     labels:
       - "traefik.enable=true"

@@ -2,7 +2,8 @@ import os
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
-    BOT_TOKEN: str
+    BOT_TOKEN: str  # TG_TOKEN
+    MAX_TOKEN: str
     ADMIN_TG_ID: int
     ZULIP_API_KEY: str
     ZULIP_EMAIL: str

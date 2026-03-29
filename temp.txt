@@ -1,0 +1,4 @@
+{'id': 7839, 'sender_id': 8, 'content': 'ping', 'recipient_id': 125, 'timestamp': 1774734146, 'client': 'website',
+'subject': 'Александр_184560163_m', 'topic_links': [], 'is_me_message': False, 'reactions': [], 'submessages': [],
+'sender_full_name': 'Александр', 'sender_email': 'alex@kik-soft.ru', 'sender_realm_str': '', 'display_recipient': 'kiksoft',
+'type': 'stream', 'stream_id': 107, 'avatar_url': None, 'content_type': 'text/x-markdown'}

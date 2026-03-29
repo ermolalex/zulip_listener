@@ -1,9 +1,14 @@
 import sys
 import re
 import json
+import threading
 from pathlib import Path
 import requests
+from enum import Enum
+
 from pydantic import BaseModel, Field
+
+from maxapi.types import InputMedia
 
 import zulip
 
@@ -32,25 +37,45 @@ zulip_client = zulip.client  # todo - исправить
 # {'ok': True, 'result': {'message_id': 480, 'from': {'id': 7586848030, 'is_bot': True, 'first_name': 'kik-test-bot', 'username': 'kik_soft_supp_bot'},
 # 'chat': {'id': 542393918, 'first_name': 'Александр', 'type': 'private'}, 'date': 1744282059, 'text': 'проблема 7'}}
 
+
+class BotType(str, Enum):
+    tg = "TG"
+    max = "MAX"
+
+
+class BotUserId(BaseModel):
+    value: int
+    bot_type: BotType
+
+
 class Message(BaseModel):
     sender_full_name: str
     content: str
     client: str  # 'ZulipPython' - от бота,  'website' - боту
     subject: str  # топик
-    channel_id:  int = Field(alias='stream_id')   # channel_id
+    channel_id:  int = Field(alias='stream_id')
 
     def from_zulip(self):
         return self.client in ("website", "ZulipMobile")
 
-    def get_topic_owner_tg_id(self):
+    def get_topic_owner_id(self) -> BotUserId:
+        """
+        Из названия топика (Пупкин_123456_м) получить ИД пользователя в ТГ или в МАКС
+        :return:
+        """
         try:
-            _, tg_id = tuple(self.subject.split("_"))
-            if (tg_id.isdigit() and int(tg_id) > 0):
-                return tg_id
+            _, id, m = tuple(self.subject.split("_"))  # если нет Исключения, значит 3 поля (Пупкин_123456_м), значит МАКС
+            if (id.isdigit() and int(id) > 0):
+                return BotUserId(value=id, bot_type=BotType.max)
         except ValueError:
-            msg_text = f"Не удалось извлеч TG_ID из строки {subject}"
-            logger.error(msg_text)
-            send_msg_to_bot(settings.ADMIN_ID, msg_text)
+            try:
+                _, id = tuple(self.subject.split("_"))  # если нет Исключения, значит 2 поля (Пупкин_123456), значит TG
+                if (id.isdigit() and int(id) > 0):
+                    return BotUserId(value=id, bot_type=BotType.tg)
+            except ValueError:
+                msg_text = f"Не удалось извлеч TG_ID из строки {subject}"
+                logger.error(msg_text)
+                send_msg_to_bot(settings.ADMIN_ID, msg_text)
 
         return None
 
@@ -85,20 +110,36 @@ def description_text(msg_text: str) -> str:
     return substr
 
 
-def send_photo_to_tg(user_tg_id: int, file_name: str) -> bool:
+@helpers.async_exec
+def send_message_to_max(user_id: int, message_text=None, file_name=None) -> bool :
     token = settings.BOT_TOKEN
-    chat_id = str(user_tg_id)
 
-    file_path = Path(file_name)
-    if not file_path.is_file():
-        logger.error(f"Не найден файл по пути '{file_name}'")
-        return False
+    headers = {
+        'Authorization': f'{settings.MAX_TOKEN}',
+        'Content-Type': 'application/json',
+    }
+
+    json_data = {}
+    if message_text:
+        json_data['text'] = message_text
+    if file_name:
+        json_data['attachments'] = [InputMedia(path=file_name),]
+
+    try:
+        response = requests.post(f'https://platform-api.max.ru/messages?user_id={user_id}', headers=headers, json=json_data)
+    except Exception as e:
+        logger.error(e)
+
+
+@helpers.async_exec
+def send_photo_to_tg(user_id: int, file_name) -> bool:
+    token = settings.BOT_TOKEN
 
     try:
         with open(file_name, 'rb') as file:
             files = {'photo': file}
             url = f"https://api.telegram.org/bot{token}/sendPhoto"
-            data = {'chat_id' : chat_id}
+            data = {'chat_id' : str(user_id)}
             result = requests.post(url, files=files, data=data)
 
             if result.status_code == 200:
@@ -110,18 +151,50 @@ def send_photo_to_tg(user_tg_id: int, file_name: str) -> bool:
     return False
 
 
+def send_photo_to_bot(bot_user_id: BotUserId, file_name: str) -> bool:
+    user_id = bot_user_id.value
+    bot_type = bot_user_id.bot_type
+
+    file_path = Path(file_name)
+    if not file_path.is_file():
+        logger.error(f"Не найден файл по пути '{file_name}'")
+        return False
+
+    if bot_type == BotType.tg:
+        return send_photo_to_tg(user_id, file_path)
+    elif bot_type == BotType.max:
+        return send_message_to_max(user_id, file_path)
+    else:
+        return False
+
+
+@helpers.async_exec
 def send_text_to_tg(user_tg_id, msg_text):
     # # https://api.telegram.org/bot<Bot_token>/sendMessage?chat_id=<chat_id>&text=Привет%20мир
     token = settings.BOT_TOKEN
     url = f"https://api.telegram.org/bot{token}/sendMessage?chat_id={user_tg_id}&text={msg_text}"
-    result = requests.get(url)
+    try:
+        result = requests.get(url)
+    except Exception as e:
+        logger.error(e)
 
+
+def send_text_to_bot(bot_user_id: BotUserId, message_text: str) -> bool:
+    user_id = bot_user_id.value
+    bot_type = bot_user_id.bot_type
+
+    if bot_type == BotType.tg:
+        # thread = threading.Thread(target=send_text_to_tg, args=(user_id, message_text))
+        # thread.start()
+        send_text_to_tg(user_id, message_text)
+    elif bot_type == BotType.max:
+        send_message_to_max(user_id, message_text)
 
 
 def send_msg_to_bot(message: Message):
-    user_tg_id = message.get_topic_owner_tg_id()
+    user_id: BotUserId = message.get_topic_owner_id()
     clean_text = message.get_clean_msg_text()
-    msg_text = f"{message.sender_full_name}: {clean_text}"
+    msg_text = f"{message.sender_full_name}1: {clean_text}"
 
     if '/user_uploads/' in msg_text:  # отправляется файл
         # zulip file url: /user_uploads/2/de/SYE4TXtSd6kfPWW0L6pD_6RS/.png
@@ -130,29 +203,32 @@ def send_msg_to_bot(message: Message):
         # file_name = file_name.replace("/user_uploads/", "")
         # file_name = f"/home/zulip/uploads/files/{file_name}"
 
-        msg_text = f"{message.sender_full_name}: {description_text(clean_text)}"
+        msg_text = f"{message.sender_full_name}2: {description_text(clean_text)}"
 
         logger.info(f"Отправляется фото из файла {file_name}, описание: {msg_text}")
-        if not send_photo_to_tg(user_tg_id, file_name):
+
+        res = send_photo_to_bot(user_id, file_name)
+
+        if not res:
             msg_text += "\nТут должна была быть картинка, но увы ..."
 
-    send_text_to_tg(user_tg_id, msg_text)
+    send_text_to_bot(user_id, msg_text)
 
 
 def on_message(msg: dict):
+    print(msg)
     message = Message.model_validate(msg)
     logger.info(msg)
-
     if message.from_zulip():
         # user_phone = extract_phone_from_subject(subject)
         # user = Profile.objects.get(phone=user_phone)
 
-        user_tg_id = message.get_topic_owner_tg_id()
-        if not user_tg_id:
+        user_id = message.get_topic_owner_id()
+        if not user_id:
             return
 
         msg_content = message.get_clean_msg_text()
-        if user_tg_id == settings.ADMIN_TG_ID and '///' in msg_content:  # какая-то админская команда
+        if user_id.value == settings.ADMIN_TG_ID and '///' in msg_content:  # какая-то админская команда
             zulip.send_msg_to_channel(
                 channel_name="bot_events",
                 topic="ответы на команды",

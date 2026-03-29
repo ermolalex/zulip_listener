@@ -2,3 +2,4 @@ pydantic
 pydantic_settings
 zulip
 requests
+maxapi
